@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saved Replies Explorer</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --muted: #8b8d98;
+    --accent: #6366f1;
+    --accent2: #818cf8;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --rose: #fb7185;
+    --cyan: #22d3ee;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 24px; line-height: 1.5; }
+  h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .stat-card .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .stat-card .value { font-size: 1.8rem; font-weight: 700; }
+  .stat-card .value.accent { color: var(--accent2); }
+  .stat-card .value.green { color: var(--green); }
+  .stat-card .value.amber { color: var(--amber); }
+  .stat-card .value.rose { color: var(--rose); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+  .panel h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; }
+
+  .bar-group { margin-bottom: 14px; }
+  .bar-label { font-size: 0.85rem; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .bar-label span:last-child { color: var(--muted); font-size: 0.8rem; }
+  .bar-track { background: var(--bg); border-radius: 6px; height: 28px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 10px; font-size: 0.75rem; font-weight: 600; transition: width 0.6s ease; }
+  .bar-fill.c0 { background: linear-gradient(90deg, #6366f1, #818cf8); }
+  .bar-fill.c1 { background: linear-gradient(90deg, #34d399, #6ee7b7); color: #064e3b; }
+  .bar-fill.c2 { background: linear-gradient(90deg, #fbbf24, #fde68a); color: #78350f; }
+  .bar-fill.c3 { background: linear-gradient(90deg, #fb7185, #fda4af); color: #881337; }
+
+  .category-list { max-height: 420px; overflow-y: auto; }
+  .category-list::-webkit-scrollbar { width: 6px; }
+  .category-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .cat-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .cat-item:last-child { border-bottom: none; }
+  .cat-badge { background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; min-width: 32px; text-align: center; }
+
+  .text-len-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; margin-top: 8px; }
+  .text-bar { background: var(--accent); border-radius: 2px 2px 0 0; min-width: 3px; flex: 1; transition: background 0.2s; cursor: pointer; position: relative; }
+  .text-bar:hover { background: var(--accent2); }
+  .text-bar-label { font-size: 0.7rem; color: var(--muted); margin-top: 6px; text-align: center; }
+
+  .filter-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-row input, .filter-row select {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px;
+    color: var(--text); font-size: 0.9rem; outline: none; transition: border-color 0.2s;
+  }
+  .filter-row input:focus, .filter-row select:focus { border-color: var(--accent); }
+  .filter-row input { flex: 1; min-width: 200px; }
+  .filter-row select { min-width: 180px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  thead th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none; white-space: nowrap; }
+  thead th:hover { color: var(--text); }
+  thead th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+  thead th.active .sort-arrow { opacity: 1; color: var(--accent2); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  tbody tr:hover { background: rgba(99, 102, 241, 0.08); }
+  tbody td { padding: 10px 12px; }
+  .mailbox-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+  .mailbox-tag.m0 { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; }
+  .mailbox-tag.m1 { background: rgba(52, 211, 153, 0.2); color: #6ee7b7; }
+  .mailbox-tag.m2 { background: rgba(251, 191, 36, 0.2); color: #fde68a; }
+  .mailbox-tag.m3 { background: rgba(251, 113, 133, 0.2); color: #fda4af; }
+  .name-cell { font-weight: 500; max-width: 400px; }
+  .len-cell { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .count-label { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+
+  .expand-btn { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--accent2); padding: 2px 8px; font-size: 0.75rem; cursor: pointer; }
+  .expand-btn:hover { background: rgba(99,102,241,0.1); }
+  .preview-row td { padding: 0 12px 12px 12px; }
+  .preview-content { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 0.82rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>Saved Replies Explorer</h1>
+<p class="subtitle">501 saved replies from HelpScout &middot; fetched 2026-03-31</p>
+
+<div class="stats-row" id="stats-row"></div>
+<div class="grid-2">
+  <div class="panel">
+    <h2>Replies by Mailbox</h2>
+    <div id="mailbox-bars"></div>
+  </div>
+  <div class="panel">
+    <h2>Categories in <select id="cat-mailbox-select" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text);font-size:0.85rem;"></select></h2>
+    <div class="category-list" id="category-list"></div>
+  </div>
+</div>
+<div class="grid-2">
+  <div class="panel">
+    <h2>Reply Text Length Distribution</h2>
+    <p style="font-size:0.8rem;color:var(--muted);margin-bottom:8px;">Hover bars for details</p>
+    <div class="text-len-chart" id="text-len-chart"></div>
+    <div class="text-bar-label" id="text-len-labels"></div>
+  </div>
+  <div class="panel">
+    <h2>Quick Insights</h2>
+    <div id="insights" style="font-size:0.85rem; line-height:1.8;"></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:28px;">
+  <h2>All Saved Replies</h2>
+  <div class="filter-row">
+    <input type="text" id="search" placeholder="Search by name...">
+    <select id="filter-mailbox"><option value="">All Mailboxes</option></select>
+    <select id="filter-category"><option value="">All Categories</option></select>
+  </div>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th data-col="id">ID <span class="sort-arrow">&#9650;</span></th>
+          <th data-col="mailbox_name">Mailbox <span class="sort-arrow">&#9650;</span></th>
+          <th data-col="category">Category <span class="sort-arrow">&#9650;</span></th>
+          <th data-col="name" class="active">Name <span class="sort-arrow">&#9650;</span></th>
+          <th data-col="text_len">Text Length <span class="sort-arrow">&#9650;</span></th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+  <p class="count-label" id="count-label"></p>
+</div>
+
+<script>
+const DATA = [{"id":3652219,"mailbox_name":"1. Happier Support","name":"AccountManagement AccountInformationApple","text_len":1060,"chat_text_len":0},
+{"id":3652227,"mailbox_name":"1. Happier Support","name":"AccountManagement AccountInformationGoogle FILLIN","text_len":988,"chat_text_len":0},
+{"id":3652245,"mailbox_name":"1. Happier Support","name":"AccountManagement AccountInformationStripe FILLIN","text_len":667,"chat_text_len":0},
+{"id":1409796,"mailbox_name":"1. Happier Support","name":"AccountManagement DeleteAccountActiveSubscription","text_len":824,"chat_text_len":0},
+{"id":1409778,"mailbox_name":"1. Happier Support","name":"AccountManagement DeleteAccountCompletedByUs","text_len":374,"chat_text_len":0},
+{"id":1839061,"mailbox_name":"1. Happier Support","name":"AccountManagement DeleteAccountHasPromoGuestGiftSub FILLIN","text_len":873,"chat_text_len":0},
+{"id":3789468,"mailbox_name":"1. Happier Support","name":"AccountManagement DeletedAccountCompletedByCustomer","text_len":1260,"chat_text_len":0},
+{"id":3656739,"mailbox_name":"1. Happier Support","name":"AccountManagement EmailUnsubscribe","text_len":764,"chat_text_len":0},
+{"id":3652257,"mailbox_name":"1. Happier Support","name":"AccountManagement EmailUpdated FILLIN","text_len":1229,"chat_text_len":0},
+{"id":3652274,"mailbox_name":"1. Happier Support","name":"AccountManagement EmailUpdatedFromSIWA","text_len":1326,"chat_text_len":0},
+{"id":1634258,"mailbox_name":"1. Happier Support","name":"AccountManagement NameUpdated","text_len":404,"chat_text_len":0},
+{"id":3657586,"mailbox_name":"1. Happier Support","name":"AccountManagement Password ResetAfterFixingInvalidEmailInBraze","text_len":793,"chat_text_len":0},
+{"id":3657592,"mailbox_name":"1. Happier Support","name":"AccountManagement Password ResetLinkandText FILLIN","text_len":1156,"chat_text_len":0},
+{"id":1427087,"mailbox_name":"1. Happier Support","name":"AccountManagement UpdateCreditCardApple","text_len":924,"chat_text_len":0},
+{"id":1411904,"mailbox_name":"1. Happier Support","name":"AccountManagement UpdateCreditCardGoogle","text_len":679,"chat_text_len":0},
+{"id":1404136,"mailbox_name":"1. Happier Support","name":"AccountManagement UpdateCreditCardStripe","text_len":435,"chat_text_len":0},
+{"id":4023748,"mailbox_name":"1. Happier Support","name":"BUG android crash 1/1/2026","text_len":1062,"chat_text_len":0},
+{"id":3798494,"mailbox_name":"1. Happier Support","name":"Bug android home tab not fixed","text_len":391,"chat_text_len":0},
+{"id":4023751,"mailbox_name":"1. Happier Support","name":"Bug ios check in 1/2026","text_len":284,"chat_text_len":0},
+{"id":3889937,"mailbox_name":"1. Happier Support","name":"Bug ios check in fix","text_len":192,"chat_text_len":0},
+{"id":4052257,"mailbox_name":"1. Happier Support","name":"CancelRefund 10%HappierSub","text_len":326,"chat_text_len":0},
+{"id":3671538,"mailbox_name":"1. Happier Support","name":"CancelRefund AllCancelDeletedAccount FILLIN","text_len":910,"chat_text_len":0},
+{"id":3696988,"mailbox_name":"1. Happier Support","name":"CancelRefund AllMoreInfo","text_len":1105,"chat_text_len":0},
+{"id":3597737,"mailbox_name":"1. Happier Support","name":"CancelRefund AllSet","text_len":236,"chat_text_len":0},
+{"id":1459143,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleCancel","text_len":1583,"chat_text_len":0},
+{"id":3579481,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleCancelStepsOnly","text_len":985,"chat_text_len":0},
+{"id":1413220,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleCancelTrial","text_len":1761,"chat_text_len":0},
+{"id":1449877,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleConfirmCancelOfAutoRenew","text_len":736,"chat_text_len":0},
+{"id":1420843,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleRefund","text_len":799,"chat_text_len":0},
+{"id":3579477,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleRefund SNIPPET","text_len":761,"chat_text_len":0},
+{"id":1413190,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleRefundAfterTrial","text_len":963,"chat_text_len":0},
+{"id":1473987,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleRefundAfterTrialEarlyAutoEnrollComplaint","text_len":1148,"chat_text_len":0},
+{"id":1472366,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleRefundDenied","text_len":1281,"chat_text_len":0},
+{"id":3653420,"mailbox_name":"1. Happier Support","name":"CancelRefund AppleRefundPreviousTrial","text_len":2644,"chat_text_len":0},
+{"id":1826034,"mailbox_name":"1. Happier Support","name":"CancelRefund CancellationInstructions","text_len":1102,"chat_text_len":0},
+{"id":1492322,"mailbox_name":"1. Happier Support","name":"CancelRefund FreeAccountCancel","text_len":935,"chat_text_len":0},
+{"id":1840474,"mailbox_name":"1. Happier Support","name":"CancelRefund FreePromoGuestGiftSub FILLIN","text_len":647,"chat_text_len":0},
+{"id":1411928,"mailbox_name":"1. Happier Support","name":"CancelRefund GoogleCancel","text_len":483,"chat_text_len":0},
+{"id":1414506,"mailbox_name":"1. Happier Support","name":"CancelRefund GoogleRefund Subscription","text_len":612,"chat_text_len":0},
+{"id":1414518,"mailbox_name":"1. Happier Support","name":"CancelRefund GoogleRefundAfterTrial","text_len":744,"chat_text_len":0},
+{"id":3657595,"mailbox_name":"1. Happier Support","name":"CancelRefund PlatformUnclearCancel","text_len":3992,"chat_text_len":0},
+{"id":3657603,"mailbox_name":"1. Happier Support","name":"CancelRefund PlatformUnclearRefund","text_len":4321,"chat_text_len":0},
+{"id":3373167,"mailbox_name":"1. Happier Support","name":"CancelRefund PlatformUnclearSecondEmail","text_len":1626,"chat_text_len":0},
+{"id":1485906,"mailbox_name":"1. Happier Support","name":"CancelRefund Stripe/GoogleCancel Trial","text_len":702,"chat_text_len":0},
+{"id":1502924,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeCancel ChurnBuster","text_len":535,"chat_text_len":0},
+{"id":3657643,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeCancel EndsLater","text_len":580,"chat_text_len":0},
+{"id":1419689,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeCancel EndsSoon","text_len":390,"chat_text_len":0},
+{"id":2526703,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeCancel Into40%Discount","text_len":858,"chat_text_len":0},
+{"id":2729846,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeCancelConfirm","text_len":541,"chat_text_len":0},
+{"id":3657659,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeCancelOrRefund","text_len":1446,"chat_text_len":0},
+{"id":3728030,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeDanNoProratedRefund","text_len":1343,"chat_text_len":0},
+{"id":2797629,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeFullRefund","text_len":649,"chat_text_len":0},
+{"id":2407673,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund ARN1CanceledCard","text_len":994,"chat_text_len":0},
+{"id":2476904,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund ChargeDisputed","text_len":608,"chat_text_len":0},
+{"id":1625042,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund GiftCertificate","text_len":383,"chat_text_len":0},
+{"id":3425080,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund NoDiscount","text_len":705,"chat_text_len":0},
+{"id":3425115,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund NoticeMissedNoDiscount","text_len":723,"chat_text_len":0},
+{"id":2953206,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund NoticeMissedWithDiscount","text_len":1008,"chat_text_len":0},
+{"id":1915713,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund ProRatedRefundRequested FILLIN","text_len":516,"chat_text_len":0},
+{"id":2519427,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund SentToExpiredCard FILLIN","text_len":585,"chat_text_len":0},
+{"id":1409398,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefund WithDiscount","text_len":964,"chat_text_len":0},
+{"id":3194764,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefundDiscount","text_len":504,"chat_text_len":0},
+{"id":1409400,"mailbox_name":"1. Happier Support","name":"CancelRefund StripeRefundTrial","text_len":1071,"chat_text_len":0},
+{"id":3893779,"mailbox_name":"1. Happier Support","name":"CancelRefundPausefor30Days","text_len":471,"chat_text_len":0},
+{"id":3911267,"mailbox_name":"1. Happier Support","name":"Challenge ENLJoin","text_len":990,"chat_text_len":0},
+{"id":3252741,"mailbox_name":"1. Happier Support","name":"Enagement GuidanceTraumaInformedMeditation SNIPPET","text_len":2550,"chat_text_len":0},
+{"id":3728278,"mailbox_name":"1. Happier Support","name":"Engagement AHAMoment SNIPPET","text_len":192,"chat_text_len":0},
+{"id":1774281,"mailbox_name":"1. Happier Support","name":"Engagement AndroidAddMinutesToStatsStreak FILLIN","text_len":1394,"chat_text_len":0},
+{"id":3653428,"mailbox_name":"1. Happier Support","name":"Engagement AndroidNotificationsReminders","text_len":531,"chat_text_len":0},
+{"id":3653606,"mailbox_name":"1. Happier Support","name":"Engagement AppleAddMinutesToStatsStreak","text_len":1150,"chat_text_len":0},
+{"id":3653612,"mailbox_name":"1. Happier Support","name":"Engagement AppleHealthAppMinutesTroubleshoot","text_len":1504,"chat_text_len":0},
+{"id":3657051,"mailbox_name":"1. Happier Support","name":"Engagement CheckingBack","text_len":306,"chat_text_len":0},
+{"id":3597198,"mailbox_name":"1. Happier Support","name":"Engagement DownloadAppDirectly SNIPPET","text_len":316,"chat_text_len":0},
+{"id":1641041,"mailbox_name":"1. Happier Support","name":"Engagement GladToHearIt","text_len":220,"chat_text_len":0},
+{"id":1480230,"mailbox_name":"1. Happier Support","name":"Engagement GladToHearItsWorkingWell","text_len":201,"chat_text_len":0},
+{"id":1416927,"mailbox_name":"1. Happier Support","name":"Engagement GladToHelp","text_len":153,"chat_text_len":0},
+{"id":2673772,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceADHD/Autism/Neurodivergence SNIPPET","text_len":3080,"chat_text_len":0},
+{"id":3337793,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceAcceptance SNIPPET","text_len":3356,"chat_text_len":0},
+{"id":3406242,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceAfterTheBasicsOtherAnchors SNIPPET","text_len":2831,"chat_text_len":0},
+{"id":2998602,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceAging SNIPPET","text_len":3726,"chat_text_len":0},
+{"id":2693479,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceAnger SNIPPET","text_len":3201,"chat_text_len":0},
+{"id":2594419,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceAnxiety SNIPPET","text_len":3531,"chat_text_len":0},
+{"id":3199010,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceAttachment SNIPPET","text_len":2530,"chat_text_len":0},
+{"id":2708355,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceBoundariesAndInnerCritic SNIPPET","text_len":4102,"chat_text_len":0},
+{"id":3520846,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceBreathingTechniquesPLAYLIST","text_len":1670,"chat_text_len":0},
+{"id":3361691,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceCalmRelax SNIPPET","text_len":2797,"chat_text_len":0},
+{"id":3106552,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceCaregivers SNIPPET","text_len":3996,"chat_text_len":0},
+{"id":2432690,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceConsistentPractice","text_len":1504,"chat_text_len":0},
+{"id":3415410,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceCriticalJudgmentalOfOthers SNIPPET","text_len":4431,"chat_text_len":0},
+{"id":3361760,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceCultivatingJoy SNIPPET","text_len":2195,"chat_text_len":0},
+{"id":3358782,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceDeathMortality SNIPPET","text_len":2828,"chat_text_len":0},
+{"id":3353864,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceDepression","text_len":3911,"chat_text_len":0},
+{"id":3361787,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceDifficultEmotions SNIPPET","text_len":1433,"chat_text_len":0},
+{"id":3413289,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceDifficultPeopleBoundaries SNIPPET","text_len":3382,"chat_text_len":0},
+{"id":3210915,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceDoubtingPractice SNIPPET","text_len":6666,"chat_text_len":0},
+{"id":1450553,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceEducationResources","text_len":1611,"chat_text_len":0},
+{"id":3361789,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceEquanimity SNIPPET","text_len":2937,"chat_text_len":0},
+{"id":2432721,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceFindingAMeditationTeacher","text_len":3500,"chat_text_len":0},
+{"id":3573434,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceFindingATeacher","text_len":2888,"chat_text_len":0},
+{"id":2728184,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceFocus SNIPPET","text_len":2883,"chat_text_len":0},
+{"id":3362049,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceForgiveness SNIPPET","text_len":1514,"chat_text_len":0},
+{"id":3362050,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceGratitude SNIPPET","text_len":2411,"chat_text_len":0},
+{"id":2798913,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceGrief SNIPPET","text_len":3060,"chat_text_len":0},
+{"id":2431519,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceHarmPotentialSuicide SNIPPET1","text_len":320,"chat_text_len":0},
+{"id":2431522,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceHarmPotentialSuicide SNIPPET2","text_len":400,"chat_text_len":0},
+{"id":3359579,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceIllness","text_len":4030,"chat_text_len":0},
+{"id":2898181,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceJealousySNIPPET","text_len":2516,"chat_text_len":0},
+{"id":2409034,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceKidsK-5TeachersElementary","text_len":2810,"chat_text_len":0},
+{"id":1738062,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceKidsTeens","text_len":1044,"chat_text_len":0},
+{"id":1671851,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceLightlyGuidedMeditations","text_len":462,"chat_text_len":0},
+{"id":2943891,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceLonelinessSNIPPET","text_len":4380,"chat_text_len":0},
+{"id":2594381,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceLoving-Kindness SNIPPET","text_len":2401,"chat_text_len":0},
+{"id":1905385,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceMeditatingWithSoundsOrMusic","text_len":3480,"chat_text_len":0},
+{"id":2492639,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceMeditationQuestions","text_len":1170,"chat_text_len":0},
+{"id":2432673,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceMeditationRelatedBooks","text_len":519,"chat_text_len":0},
+{"id":2981366,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceMenopause SNIPPET","text_len":4441,"chat_text_len":0},
+{"id":3362071,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceMovement SNIPPET","text_len":2433,"chat_text_len":0},
+{"id":3264725,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceNonSelf SNIPPET","text_len":2286,"chat_text_len":0},
+{"id":3362062,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceNoting SNIPPET","text_len":1088,"chat_text_len":0},
+{"id":3362064,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceOpenAwareness","text_len":2157,"chat_text_len":0},
+{"id":2680886,"mailbox_name":"1. Happier Support","name":"Engagement GuidancePain SNIPPET","text_len":4138,"chat_text_len":0},
+{"id":3393686,"mailbox_name":"1. Happier Support","name":"Engagement GuidancePanic SNIPPET","text_len":1331,"chat_text_len":0},
+{"id":3498821,"mailbox_name":"1. Happier Support","name":"Engagement GuidancePoliticsElectionStress","text_len":3608,"chat_text_len":0},
+{"id":2591237,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceRAIN","text_len":1004,"chat_text_len":0},
+{"id":3318536,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceRelationships SNIPPET","text_len":1557,"chat_text_len":0},
+{"id":3362067,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceRelaxedLightEffort SNIPPET","text_len":1348,"chat_text_len":0},
+{"id":2412732,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceRetreats","text_len":1251,"chat_text_len":0},
+{"id":2932805,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceShortQuickMeditationList SNIPPET","text_len":2233,"chat_text_len":0},
+{"id":2296501,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceSleep SNIPPET","text_len":4276,"chat_text_len":0},
+{"id":3347480,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceSoundAnchorMeditations SNIPPET","text_len":3012,"chat_text_len":0},
+{"id":3333287,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceStress SNIPPET","text_len":3425,"chat_text_len":0},
+{"id":3345449,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceThoughtsThinkingRumination SNIPPET","text_len":3588,"chat_text_len":0},
+{"id":3740141,"mailbox_name":"1. Happier Support","name":"Engagement GuidanceWorldEventsPoliticsPolarization","text_len":4332,"chat_text_len":0},
+{"id":3656934,"mailbox_name":"1. Happier Support","name":"Engagement LaunchWhere'sWeeklyWisdom","text_len":711,"chat_text_len":0},
+{"id":3605067,"mailbox_name":"1. Happier Support","name":"Engagement LaunchiOS16","text_len":919,"chat_text_len":0},
+{"id":3764927,"mailbox_name":"1. Happier Support","name":"Engagement MeditateEveryDay","text_len":426,"chat_text_len":0},
+{"id":3674644,"mailbox_name":"1. Happier Support","name":"Engagement MonthlyCountIncorrectHomePage","text_len":1301,"chat_text_len":0},
+{"id":3645661,"mailbox_name":"1. Happier Support","name":"Engagement MoveAppFromAppLibraryToHomeScreenSNIPPET","text_len":509,"chat_text_len":0},
+{"id":3653622,"mailbox_name":"1. Happier Support","name":"Engagement PracticePlanEndingNotSubscription","text_len":779,"chat_text_len":0},
+{"id":3656936,"mailbox_name":"1. Happier Support","name":"Engagement QRCodeOnComputer","text_len":1019,"chat_text_len":0},
+{"id":3653661,"mailbox_name":"1. Happier Support","name":"Engagement SkipCheckIn","text_len":1141,"chat_text_len":0},
+{"id":3671822,"mailbox_name":"1. Happier Support","name":"Engagement WheresThePodcast","text_len":1851,"chat_text_len":0},
+{"id":3548788,"mailbox_name":"1. Happier Support","name":"FAQ Can I listen to music while meditating?","text_len":132,"chat_text_len":0},
+{"id":3548779,"mailbox_name":"1. Happier Support","name":"FAQ Can I meditate lying down?","text_len":106,"chat_text_len":0},
+{"id":3548778,"mailbox_name":"1. Happier Support","name":"FAQ Can I meditate while doing yoga? What is the difference between meditat","text_len":177,"chat_text_len":0},
+{"id":3548801,"mailbox_name":"1. Happier Support","name":"FAQ Can I pause meditating and write something down?","text_len":154,"chat_text_len":0},
+{"id":3548795,"mailbox_name":"1. Happier Support","name":"FAQ Can I scratch an itch or move during meditation?","text_len":147,"chat_text_len":0},
+{"id":3548839,"mailbox_name":"1. Happier Support","name":"FAQ Can meditation help me deal with grief and loss?","text_len":132,"chat_text_len":0},
+{"id":3548799,"mailbox_name":"1. Happier Support","name":"FAQ Can you meditate while driving?","text_len":118,"chat_text_len":0},
+{"id":3548792,"mailbox_name":"1. Happier Support","name":"FAQ Do I have to sit to meditate? How should I sit?","text_len":127,"chat_text_len":0},
+{"id":3548803,"mailbox_name":"1. Happier Support","name":"FAQ Does mindfulness meditation combat Insomnia and improve sleep quality?","text_len":159,"chat_text_len":0},
+{"id":3548808,"mailbox_name":"1. Happier Support","name":"FAQ How Long Should I Meditate To See Results?","text_len":138,"chat_text_len":0},
+{"id":3548825,"mailbox_name":"1. Happier Support","name":"FAQ How can I bring more mindfulness in my daily life?","text_len":133,"chat_text_len":0},
+{"id":3548806,"mailbox_name":"1. Happier Support","name":"FAQ How can I deal with body pain when I’m meditating?","text_len":152,"chat_text_len":0},
+{"id":3548804,"mailbox_name":"1. Happier Support","name":"FAQ How can I deal with hard emotions when I meditate?","text_len":158,"chat_text_len":0},
+{"id":3548842,"mailbox_name":"1. Happier Support","name":"FAQ How can I do walking meditation?","text_len":115,"chat_text_len":0},
+{"id":3548826,"mailbox_name":"1. Happier Support","name":"FAQ How can I find a meditation retreat center?","text_len":156,"chat_text_len":0},
+{"id":3548802,"mailbox_name":"1. Happier Support","name":"FAQ How can I meditate regularly?","text_len":116,"chat_text_len":0},
+{"id":3548846,"mailbox_name":"1. Happier Support","name":"FAQ How can I overcome resistance to meditation?","text_len":142,"chat_text_len":0},
+{"id":3548786,"mailbox_name":"1. Happier Support","name":"FAQ How can I practice meditation when I’m sick or fighting a cold?","text_len":147,"chat_text_len":0},
+{"id":3548797,"mailbox_name":"1. Happier Support","name":"FAQ How can I stop controlling my breath when I meditate?","text_len":151,"chat_text_len":0},
+{"id":3548833,"mailbox_name":"1. Happier Support","name":"FAQ How can I use mindfulness for anger management?","text_len":123,"chat_text_len":0},
+{"id":3548798,"mailbox_name":"1. Happier Support","name":"FAQ How can meditation help with desire or craving?","text_len":152,"chat_text_len":0},
+{"id":3548818,"mailbox_name":"1. Happier Support","name":"FAQ How can meditation help with feeling lonely?","text_len":153,"chat_text_len":0},
+{"id":3548847,"mailbox_name":"1. Happier Support","name":"FAQ How can parents be mindful?","text_len":105,"chat_text_len":0},
+{"id":3548828,"mailbox_name":"1. Happier Support","name":"FAQ How can we teach mindfulness meditation to teens?","text_len":136,"chat_text_len":0},
+{"id":3548840,"mailbox_name":"1. Happier Support","name":"FAQ How can you meditate with tinnitus?","text_len":122,"chat_text_len":0},
+{"id":3548807,"mailbox_name":"1. Happier Support","name":"FAQ How do I control my mind when I meditate?","text_len":140,"chat_text_len":0},
+{"id":3548832,"mailbox_name":"1. Happier Support","name":"FAQ How do I do a meditation retreat at home?","text_len":134,"chat_text_len":0},
+{"id":3548824,"mailbox_name":"1. Happier Support","name":"FAQ How do I get the changes I want from meditating?","text_len":144,"chat_text_len":0},
+{"id":3548796,"mailbox_name":"1. Happier Support","name":"FAQ How do I handle distracting sounds when I’m meditating?","text_len":149,"chat_text_len":0},
+{"id":3548784,"mailbox_name":"1. Happier Support","name":"FAQ How do I know if I'm meditating correctly?","text_len":122,"chat_text_len":0},
+{"id":3548831,"mailbox_name":"1. Happier Support","name":"FAQ How do I stay awake while I meditate?","text_len":135,"chat_text_len":0},
+{"id":3548805,"mailbox_name":"1. Happier Support","name":"FAQ How do I stay interested in meditation over time?","text_len":152,"chat_text_len":0},
+{"id":3548835,"mailbox_name":"1. Happier Support","name":"FAQ How do you know if meditation is working?","text_len":132,"chat_text_len":0},
+{"id":3548841,"mailbox_name":"1. Happier Support","name":"FAQ How long should I meditate?","text_len":108,"chat_text_len":0},
+{"id":3548822,"mailbox_name":"1. Happier Support","name":"FAQ Is it okay to feel good when I meditate?","text_len":123,"chat_text_len":0},
+{"id":3548776,"mailbox_name":"1. Happier Support","name":"FAQ Mindfulness Meditation for Grief","text_len":108,"chat_text_len":0},
+{"id":3548791,"mailbox_name":"1. Happier Support","name":"FAQ Sometimes I feel tense or strained during or after my meditation practi","text_len":194,"chat_text_len":0},
+{"id":3548857,"mailbox_name":"1. Happier Support","name":"FAQ What are the benefits of mindfulness meditation?","text_len":150,"chat_text_len":0},
+{"id":3548836,"mailbox_name":"1. Happier Support","name":"FAQ What are the best books on mindfulness meditation?","text_len":136,"chat_text_len":0},
+{"id":3548785,"mailbox_name":"1. Happier Support","name":"FAQ What do I do if I have a song stuck in my head during meditation?","text_len":166,"chat_text_len":0},
+{"id":3548838,"mailbox_name":"1. Happier Support","name":"FAQ What do I do if I’m restless while I meditate?","text_len":128,"chat_text_len":0},
+{"id":3548845,"mailbox_name":"1. Happier Support","name":"FAQ What does that Buddhist word mean?","text_len":122,"chat_text_len":0},
+{"id":3548819,"mailbox_name":"1. Happier Support","name":"FAQ What resources are there to explain and teach kids about meditation?","text_len":190,"chat_text_len":0},
+{"id":3548772,"mailbox_name":"1. Happier Support","name":"FAQ What should I do if I’m getting bored with meditation?","text_len":139,"chat_text_len":0},
+{"id":3548817,"mailbox_name":"1. Happier Support","name":"FAQ What should I do when I get distracted while meditating?","text_len":166,"chat_text_len":0},
+{"id":3548843,"mailbox_name":"1. Happier Support","name":"FAQ Which course should I start with?","text_len":120,"chat_text_len":0},
+{"id":3548821,"mailbox_name":"1. Happier Support","name":"FAQ Why and how to be mindful of your thoughts","text_len":134,"chat_text_len":0},
+{"id":3548830,"mailbox_name":"1. Happier Support","name":"FAQ Why do I experience no feelings or a lack of emotions during meditation","text_len":176,"chat_text_len":0},
+{"id":3548837,"mailbox_name":"1. Happier Support","name":"FAQ Why do I feel worse after I meditate sometimes?","text_len":129,"chat_text_len":0},
+{"id":1474353,"mailbox_name":"1. Happier Support","name":"Feedback ContentSuggestion","text_len":430,"chat_text_len":0},
+{"id":1409790,"mailbox_name":"1. Happier Support","name":"Feedback FeatureRequest","text_len":491,"chat_text_len":0},
+{"id":3590882,"mailbox_name":"1. Happier Support","name":"Feedback FeatureRequestMilestonesConfettiIssues","text_len":689,"chat_text_len":0},
+{"id":3357387,"mailbox_name":"1. Happier Support","name":"Feedback FeatureRequestOtherLanguages","text_len":587,"chat_text_len":0},
+{"id":3555913,"mailbox_name":"1. Happier Support","name":"Feedback FeatureRequestSeeCheckInAnswers","text_len":617,"chat_text_len":0},
+{"id":1534425,"mailbox_name":"1. Happier Support","name":"Feedback FeatureRequestWebApp","text_len":991,"chat_text_len":0},
+{"id":3529231,"mailbox_name":"1. Happier Support","name":"Feedback LaunchNotOnAndroidYet","text_len":557,"chat_text_len":0},
+{"id":1839338,"mailbox_name":"1. Happier Support","name":"Feedback NeutralResponseConversationEnded","text_len":197,"chat_text_len":0},
+{"id":1451154,"mailbox_name":"1. Happier Support","name":"Feedback NewsletterFeedback","text_len":351,"chat_text_len":0},
+{"id":3564092,"mailbox_name":"1. Happier Support","name":"Feedback PassedOn","text_len":493,"chat_text_len":0},
+{"id":3455821,"mailbox_name":"1. Happier Support","name":"Feedback QuoteRequestPositiveFeedback FILLIN","text_len":920,"chat_text_len":0},
+{"id":1749699,"mailbox_name":"1. Happier Support","name":"Feedback ThanksForTheKindNote","text_len":452,"chat_text_len":0},
+{"id":3685874,"mailbox_name":"1. Happier Support","name":"Get AcquisitionQRCode30DayTrialFullPrice","text_len":685,"chat_text_len":0},
+{"id":3685877,"mailbox_name":"1. Happier Support","name":"Get AcquisitionQRCode7DayTrial40%Intro","text_len":691,"chat_text_len":0},
+{"id":1471688,"mailbox_name":"1. Happier Support","name":"Get AndroidMonthlyToYearlySubscription","text_len":976,"chat_text_len":0},
+{"id":3653412,"mailbox_name":"1. Happier Support","name":"Get AppleCancelTrialInto40% FILLIN","text_len":2675,"chat_text_len":0},
+{"id":1474333,"mailbox_name":"1. Happier Support","name":"Get AppleMonthlyToYearlySubscription","text_len":945,"chat_text_len":0},
+{"id":3750977,"mailbox_name":"1. Happier Support","name":"Get B2BEmail#1Options","text_len":594,"chat_text_len":0},
+{"id":3653808,"mailbox_name":"1. Happier Support","name":"Get B2BGroupDiscount30%Forever","text_len":4202,"chat_text_len":0},
+{"id":3654757,"mailbox_name":"1. Happier Support","name":"Get Discount 30%ForeverHarvardFamilyFriends","text_len":2712,"chat_text_len":0},
+{"id":3654758,"mailbox_name":"1. Happier Support","name":"Get Discount40%Forever","text_len":2500,"chat_text_len":0},
+{"id":2716998,"mailbox_name":"1. Happier Support","name":"Get Discount40%ForeverManual#1","text_len":618,"chat_text_len":0},
+{"id":2419713,"mailbox_name":"1. Happier Support","name":"Get Discount40%ForeverManual#2 FILLIN","text_len":692,"chat_text_len":0},
+{"id":3654763,"mailbox_name":"1. Happier Support","name":"Get Discount40%ForeverStepsOnly","text_len":2319,"chat_text_len":0},
+{"id":3654765,"mailbox_name":"1. Happier Support","name":"Get Discount40%Intro","text_len":2379,"chat_text_len":0},
+{"id":3654776,"mailbox_name":"1. Happier Support","name":"Get Discount40%Intro SNIPPET","text_len":2363,"chat_text_len":0},
+{"id":3654768,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroAfterAppleCancel","text_len":2567,"chat_text_len":0},
+{"id":3601398,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroAndroidRetentionGoogleSub","text_len":1110,"chat_text_len":0},
+{"id":3601249,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroAndroidRetentionStripe","text_len":1161,"chat_text_len":0},
+{"id":3654769,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroAppleRefundWanted40%OffButGotAppleTrial","text_len":2289,"chat_text_len":0},
+{"id":3654772,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroCreditCardDeclined","text_len":1940,"chat_text_len":0},
+{"id":2716993,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroManual#1","text_len":604,"chat_text_len":0},
+{"id":3184271,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroManual#2Expired FILLIN","text_len":651,"chat_text_len":0},
+{"id":2424585,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroManual#2Renewing FILLIN","text_len":657,"chat_text_len":0},
+{"id":2117587,"mailbox_name":"1. Happier Support","name":"Get Discount40%IntroStripePartialRefundIssued","text_len":552,"chat_text_len":0},
+{"id":3654779,"mailbox_name":"1. Happier Support","name":"Get Discount50%Forever","text_len":3702,"chat_text_len":0},
+{"id":3654787,"mailbox_name":"1. Happier Support","name":"Get Discount50%Forever SNIPPET","text_len":2587,"chat_text_len":0},
+{"id":3654781,"mailbox_name":"1. Happier Support","name":"Get Discount50%ForeverFamily","text_len":2840,"chat_text_len":0},
+{"id":3654784,"mailbox_name":"1. Happier Support","name":"Get Discount50%ForeverFamily AlreadySubscribed FILLIN","text_len":3295,"chat_text_len":0},
+{"id":3654785,"mailbox_name":"1. Happier Support","name":"Get Discount50%ForeverFamilyKids","text_len":3466,"chat_text_len":0},
+{"id":2391916,"mailbox_name":"1. Happier Support","name":"Get Discount50%ForeverFamilyNoAppleFamilySharing SNIPPET","text_len":173,"chat_text_len":0},
+{"id":2717003,"mailbox_name":"1. Happier Support","name":"Get Discount50%ForeverManual#1","text_len":576,"chat_text_len":0},
+{"id":2419702,"mailbox_name":"1. Happier Support","name":"Get Discount50%ForeverManual#2 FILLIN","text_len":642,"chat_text_len":0},
+{"id":2571329,"mailbox_name":"1. Happier Support","name":"Get Discount50%ForeverStripePartialRefund FILLIN","text_len":914,"chat_text_len":0},
+{"id":3654793,"mailbox_name":"1. Happier Support","name":"Get Discount50%Intro","text_len":2893,"chat_text_len":0},
+{"id":3289153,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroBOGOLostPromoCodeEmail#1","text_len":880,"chat_text_len":0},
+{"id":3654842,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroBOGOLostPromoCodeEmail#2 FILLIN","text_len":2423,"chat_text_len":0},
+{"id":3654895,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroBOGOLostPromoCodeEmail#2 FILLIN","text_len":2392,"chat_text_len":0},
+{"id":3654848,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroCreditCardDeclined FILLIN","text_len":1224,"chat_text_len":0},
+{"id":3654897,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroCreditCardDeclined FILLIN","text_len":1139,"chat_text_len":0},
+{"id":3654855,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroGuestPassExpiringSoon FILLIN","text_len":1628,"chat_text_len":0},
+{"id":2717000,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroManual#1","text_len":604,"chat_text_len":0},
+{"id":3189537,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroManual#2Expired FILLIN","text_len":711,"chat_text_len":0},
+{"id":2424555,"mailbox_name":"1. Happier Support","name":"Get Discount50%IntroManual#2Renewing","text_len":681,"chat_text_len":0},
+{"id":3654893,"mailbox_name":"1. Happier Support","name":"Get DiscountAllSet","text_len":678,"chat_text_len":0},
+{"id":3623118,"mailbox_name":"1. Happier Support","name":"Get DiscountAnnualCostShownAsMonthlyOnWebsite","text_len":572,"chat_text_len":0},
+{"id":2690385,"mailbox_name":"1. Happier Support","name":"Get DiscountCreditCardUpdateForManualDiscount FILLIN","text_len":414,"chat_text_len":0},
+{"id":3656723,"mailbox_name":"1. Happier Support","name":"Get EducationFirstResponse FILLIN","text_len":649,"chat_text_len":0},
+{"id":3656726,"mailbox_name":"1. Happier Support","name":"Get EducationGettingPromoCodes FILLIN","text_len":3425,"chat_text_len":0},
+{"id":3656741,"mailbox_name":"1. Happier Support","name":"Get EmployeePromoRequestGetting FILLIN","text_len":3205,"chat_text_len":0},
+{"id":3657059,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateCopy","text_len":498,"chat_text_len":0},
+{"id":3657061,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateFullPriced","text_len":1100,"chat_text_len":0},
+{"id":3657064,"mailbox_name":"1. Happier Support","name":"Get GiftCertificatePurchase40%Discount","text_len":1229,"chat_text_len":0},
+{"id":3657067,"mailbox_name":"1. Happier Support","name":"Get GiftCertificatePurchase50%Discount","text_len":1230,"chat_text_len":0},
+{"id":3657074,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateRedeemGeneral","text_len":2244,"chat_text_len":0},
+{"id":3657075,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateRedeemLater FILLIN","text_len":1487,"chat_text_len":0},
+{"id":3657076,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateRedeemLaterCancelAppleSub FILLIN","text_len":2854,"chat_text_len":0},
+{"id":3657072,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateRedeemOntoExistingAccount","text_len":1677,"chat_text_len":0},
+{"id":3657416,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateSelfGifting FILLIN","text_len":1113,"chat_text_len":0},
+{"id":3657419,"mailbox_name":"1. Happier Support","name":"Get GiftCertificateWePutCodeOnYourAccount","text_len":732,"chat_text_len":0},
+{"id":3835705,"mailbox_name":"1. Happier Support","name":"Get GuestPassSending","text_len":1256,"chat_text_len":0},
+{"id":1419584,"mailbox_name":"1. Happier Support","name":"Get HowtoSubscribe","text_len":672,"chat_text_len":0},
+{"id":3657559,"mailbox_name":"1. Happier Support","name":"Get MonthlyAllPlatforms","text_len":1524,"chat_text_len":0},
+{"id":3657562,"mailbox_name":"1. Happier Support","name":"Get MonthlyStripe$14.99Monthly","text_len":1929,"chat_text_len":0},
+{"id":3657565,"mailbox_name":"1. Happier Support","name":"Get MonthlyStripeDiscount$9.99MonthlyForever","text_len":1850,"chat_text_len":0},
+{"id":2120034,"mailbox_name":"1. Happier Support","name":"Get NeedBasedMultipleYears","text_len":354,"chat_text_len":0},
+{"id":3657570,"mailbox_name":"1. Happier Support","name":"Get NeedBasedOptions50%DiscountAndPromoCode FILLIN","text_len":2939,"chat_text_len":0},
+{"id":1745209,"mailbox_name":"1. Happier Support","name":"Get NeedBasedPromoHasSubscriptionCanceledSub","text_len":637,"chat_text_len":0},
+{"id":2118925,"mailbox_name":"1. Happier Support","name":"Get NeedBasedPromoHasSubscriptionRefundedSub","text_len":607,"chat_text_len":0},
+{"id":1413148,"mailbox_name":"1. Happier Support","name":"Get NeedBasedPromoNotSubscribed","text_len":1506,"chat_text_len":0},
+{"id":3657572,"mailbox_name":"1. Happier Support","name":"Get NeedBasedSupportPromoCode12Months(Can'tSeeAccount)","text_len":2482,"chat_text_len":0},
+{"id":3657579,"mailbox_name":"1. Happier Support","name":"Get NeedBasedSupportPromoCode6Months(Can'tSeeAccount)","text_len":2490,"chat_text_len":0},
+{"id":3792754,"mailbox_name":"1. Happier Support","name":"Get PromoCodeWalmartGotAppleSubscriptionInstead","text_len":2337,"chat_text_len":0},
+{"id":3657616,"mailbox_name":"1. Happier Support","name":"Get PromoRedemption Instructions FILLIN SNIPPET","text_len":1937,"chat_text_len":0},
+{"id":3657614,"mailbox_name":"1. Happier Support","name":"Get PromoRedemptionInstructions FILLIN","text_len":2125,"chat_text_len":0},
+{"id":3657618,"mailbox_name":"1. Happier Support","name":"Get PromoRedemptionWePutPromoOnYourAccount","text_len":1118,"chat_text_len":0},
+{"id":3657081,"mailbox_name":"1. Happier Support","name":"Get ResubscribeAfterGiftSubscriptionExpires","text_len":1174,"chat_text_len":0},
+{"id":3685888,"mailbox_name":"1. Happier Support","name":"Get ShareCoWorkers SNIPPET","text_len":282,"chat_text_len":0},
+{"id":3685889,"mailbox_name":"1. Happier Support","name":"Get ShareEducation SNIPPET","text_len":282,"chat_text_len":0},
+{"id":3685878,"mailbox_name":"1. Happier Support","name":"Get ShareIndividual SNIPPET","text_len":296,"chat_text_len":0},
+{"id":3683019,"mailbox_name":"1. Happier Support","name":"Get ShareWellnessSpace SNIPPET","text_len":293,"chat_text_len":0},
+{"id":3657661,"mailbox_name":"1. Happier Support","name":"Get StripeAnnualAndMonthlyPricingAndSubscribing","text_len":1243,"chat_text_len":0},
+{"id":3657677,"mailbox_name":"1. Happier Support","name":"Get WantsTrialWithoutAutoSubscribe","text_len":1347,"chat_text_len":0},
+{"id":3971748,"mailbox_name":"1. Happier Support","name":"LINK 40% Off Once","text_len":214,"chat_text_len":0},
+{"id":3971756,"mailbox_name":"1. Happier Support","name":"LINK 40% Off Once","text_len":247,"chat_text_len":0},
+{"id":2554542,"mailbox_name":"1. Happier Support","name":"Link $9.99MonthlyStripeForever","text_len":134,"chat_text_len":0},
+{"id":2554543,"mailbox_name":"1. Happier Support","name":"Link 40%StripeForever","text_len":200,"chat_text_len":0},
+{"id":2554541,"mailbox_name":"1. Happier Support","name":"Link 50%StripeForever","text_len":194,"chat_text_len":0},
+{"id":2639042,"mailbox_name":"1. Happier Support","name":"Link AndroidForceStop","text_len":86,"chat_text_len":0},
+{"id":1460790,"mailbox_name":"1. Happier Support","name":"Link AppleForceQuitSupportArticle","text_len":65,"chat_text_len":0},
+{"id":1435691,"mailbox_name":"1. Happier Support","name":"Link AppleManageSubscriptionsSupportArticle","text_len":89,"chat_text_len":0},
+{"id":2988811,"mailbox_name":"1. Happier Support","name":"Link AppleProductSupport","text_len":125,"chat_text_len":0},
+{"id":1433026,"mailbox_name":"1. Happier Support","name":"Link AppleRefundSupportArticle","text_len":91,"chat_text_len":0},
+{"id":1536062,"mailbox_name":"1. Happier Support","name":"Link AppleScreenShot","text_len":66,"chat_text_len":0},
+{"id":1400127,"mailbox_name":"1. Happier Support","name":"Link AppleSupportWorldwidePhoneNumbers","text_len":98,"chat_text_len":0},
+{"id":2696409,"mailbox_name":"1. Happier Support","name":"Link FreeMeditationsOnTheWebsite","text_len":106,"chat_text_len":0},
+{"id":1443503,"mailbox_name":"1. Happier Support","name":"Link GooglePlayRefundPolicy","text_len":98,"chat_text_len":0},
+{"id":1414197,"mailbox_name":"1. Happier Support","name":"Link GooglePlaySubscriptionManagement","text_len":140,"chat_text_len":0},
+{"id":1561376,"mailbox_name":"1. Happier Support","name":"Link LoginSignOutHelpLinks","text_len":663,"chat_text_len":0},
+{"id":3761509,"mailbox_name":"1. Happier Support","name":"Link MindfulMenopauseGuide","text_len":83,"chat_text_len":0},
+{"id":3761508,"mailbox_name":"1. Happier Support","name":"Link NewInTheApp","text_len":96,"chat_text_len":0},
+{"id":3657524,"mailbox_name":"1. Happier Support","name":"Link PasswordReset","text_len":82,"chat_text_len":0},
+{"id":1561628,"mailbox_name":"1. Happier Support","name":"Link SIWAAppleSupport","text_len":73,"chat_text_len":0},
+{"id":2547030,"mailbox_name":"1. Happier Support","name":"Other BecomeAMeditationTeacher","text_len":1935,"chat_text_len":0},
+{"id":1971261,"mailbox_name":"1. Happier Support","name":"Other EducationPermissionsPolicy SNIPPET","text_len":1064,"chat_text_len":0},
+{"id":3600363,"mailbox_name":"1. Happier Support","name":"Other JobInquiryCheckTheWebsite","text_len":398,"chat_text_len":0},
+{"id":3657584,"mailbox_name":"1. Happier Support","name":"Other NoQuestion","text_len":362,"chat_text_len":0},
+{"id":1437914,"mailbox_name":"1. Happier Support","name":"SNIPPET ApplecareUSPhoneNumber","text_len":12,"chat_text_len":0},
+{"id":1669182,"mailbox_name":"1. Happier Support","name":"SNIPPET CheckAccountRegistrationAndMethod","text_len":282,"chat_text_len":0},
+{"id":1670703,"mailbox_name":"1. Happier Support","name":"SNIPPET ContactGooglePlaySupport","text_len":113,"chat_text_len":0},
+{"id":3657052,"mailbox_name":"1. Happier Support","name":"SNIPPET FreeContentIncludes","text_len":162,"chat_text_len":0},
+{"id":1400134,"mailbox_name":"1. Happier Support","name":"SNIPPET HereToHelp","text_len":71,"chat_text_len":0},
+{"id":2571323,"mailbox_name":"1. Happier Support","name":"SNIPPET MentalHealthDisclaimer","text_len":273,"chat_text_len":0},
+{"id":2418300,"mailbox_name":"1. Happier Support","name":"SNIPPET NoPhoneSupport","text_len":173,"chat_text_len":0},
+{"id":2903036,"mailbox_name":"1. Happier Support","name":"SNIPPET ThanksForMeditatingWithUs","text_len":30,"chat_text_len":0},
+{"id":3343224,"mailbox_name":"1. Happier Support","name":"Social AskingForHelp FILLIN","text_len":521,"chat_text_len":0},
+{"id":3321055,"mailbox_name":"1. Happier Support","name":"Social PersonalExperienceTestimonyStory","text_len":512,"chat_text_len":0},
+{"id":3595527,"mailbox_name":"1. Happier Support","name":"Social RequestForVideo","text_len":1231,"chat_text_len":0},
+{"id":3480907,"mailbox_name":"1. Happier Support","name":"Social RequestToUseQuote FILLIN","text_len":668,"chat_text_len":0},
+{"id":3595531,"mailbox_name":"1. Happier Support","name":"Social ThanksForTheContent","text_len":257,"chat_text_len":0},
+{"id":3653689,"mailbox_name":"1. Happier Support","name":"TechSupport AndroidDeleteAndReinstall FILLIN","text_len":1282,"chat_text_len":0},
+{"id":1414491,"mailbox_name":"1. Happier Support","name":"TechSupport AndroidLockScreenPlaybackIssues","text_len":1318,"chat_text_len":0},
+{"id":3185248,"mailbox_name":"1. Happier Support","name":"TechSupport AndroidMilestones","text_len":535,"chat_text_len":0},
+{"id":1414499,"mailbox_name":"1. Happier Support","name":"TechSupport AndroidUpdateApp","text_len":428,"chat_text_len":0},
+{"id":2447416,"mailbox_name":"1. Happier Support","name":"TechSupport AndroidUpdateOS","text_len":740,"chat_text_len":0},
+{"id":2721267,"mailbox_name":"1. Happier Support","name":"TechSupport AppleAndAndroidUpdateApp SNIPPET","text_len":286,"chat_text_len":0},
+{"id":3653696,"mailbox_name":"1. Happier Support","name":"TechSupport AppleDeleteAndReinstall FILLIN","text_len":1330,"chat_text_len":0},
+{"id":3653705,"mailbox_name":"1. Happier Support","name":"TechSupport AppleDeleteAndReinstallNoAccountAddress FILLIN","text_len":2076,"chat_text_len":0},
+{"id":3797181,"mailbox_name":"1. Happier Support","name":"TechSupport AppleForceQuit teacher_names","text_len":573,"chat_text_len":0},
+{"id":3653716,"mailbox_name":"1. Happier Support","name":"TechSupport AppleForceQuitDeleteAndReinstall FILLIN","text_len":2235,"chat_text_len":0},
+{"id":3653785,"mailbox_name":"1. Happier Support","name":"TechSupport AppleHealthAppDisabledDelAndReinstallApp#1 FILLIN","text_len":1372,"chat_text_len":0},
+{"id":2126946,"mailbox_name":"1. Happier Support","name":"TechSupport AppleHealthDisabledDelAndReinstallDidn'tWork#2","text_len":1504,"chat_text_len":0},
+{"id":3827343,"mailbox_name":"1. Happier Support","name":"TechSupport AppleLockScreen","text_len":1338,"chat_text_len":0},
+{"id":2726506,"mailbox_name":"1. Happier Support","name":"TechSupport AppleUpdateApp","text_len":438,"chat_text_len":0},
+{"id":2726513,"mailbox_name":"1. Happier Support","name":"TechSupport AppleUpdateOSAndApp","text_len":698,"chat_text_len":0},
+{"id":3804106,"mailbox_name":"1. Happier Support","name":"TechSupport MeditationLengths","text_len":459,"chat_text_len":0},
+{"id":3653789,"mailbox_name":"1. Happier Support","name":"TechSupport NoSound","text_len":1394,"chat_text_len":0},
+{"id":1803710,"mailbox_name":"1. Happier Support","name":"TechSupport Playback/NetworkError1","text_len":749,"chat_text_len":0},
+{"id":2007546,"mailbox_name":"1. Happier Support","name":"TechSupport Playback/NetworkJumboAppTroubleshoot","text_len":551,"chat_text_len":0},
+{"id":3188056,"mailbox_name":"1. Happier Support","name":"TechSupport Playback/NetworkVPNTroubleshoot","text_len":1062,"chat_text_len":0},
+{"id":3653805,"mailbox_name":"1. Happier Support","name":"TechSupport RemindersStopped","text_len":691,"chat_text_len":0},
+{"id":3321215,"mailbox_name":"1. Happier Support","name":"TechSupport SendUsScreenshot","text_len":578,"chat_text_len":0},
+{"id":3842535,"mailbox_name":"1. Happier Support","name":"TechSupport med_stats_bug","text_len":359,"chat_text_len":0},
+{"id":3657680,"mailbox_name":"1. Happier Support","name":"Use AppleRestorePurchases","text_len":664,"chat_text_len":0},
+{"id":2864683,"mailbox_name":"1. Happier Support","name":"Use CopiedMedHistory","text_len":487,"chat_text_len":0},
+{"id":3657682,"mailbox_name":"1. Happier Support","name":"Use DeletedAccountLostSubscriptionAccess","text_len":1145,"chat_text_len":0},
+{"id":2703309,"mailbox_name":"1. Happier Support","name":"Use DiscountRedeemAlreadySubscribedApple","text_len":2001,"chat_text_len":0},
+{"id":2703299,"mailbox_name":"1. Happier Support","name":"Use DiscountRedeemAlreadySubscribedStripe|Google","text_len":758,"chat_text_len":0},
+{"id":1535505,"mailbox_name":"1. Happier Support","name":"Use GoogleRestorePurchases","text_len":651,"chat_text_len":0},
+{"id":1542357,"mailbox_name":"1. Happier Support","name":"Use LoginIssueConfirmEmailUsedToLogin","text_len":533,"chat_text_len":0},
+{"id":3657527,"mailbox_name":"1. Happier Support","name":"Use LoginIssueEmail FILLIN","text_len":2219,"chat_text_len":0},
+{"id":3657545,"mailbox_name":"1. Happier Support","name":"Use LoginIssueEmail FILLIN SNIPPET","text_len":1531,"chat_text_len":0},
+{"id":3657541,"mailbox_name":"1. Happier Support","name":"Use LoginIssueEmail-IncludesSignOutSteps FILLIN","text_len":2287,"chat_text_len":0},
+{"id":3657548,"mailbox_name":"1. Happier Support","name":"Use LoginIssueGoogle","text_len":1795,"chat_text_len":0},
+{"id":1716805,"mailbox_name":"1. Happier Support","name":"Use LoginIssueNeedMoreInfo FILLIN","text_len":1316,"chat_text_len":0},
+{"id":3657550,"mailbox_name":"1. Happier Support","name":"Use LoginIssueSIWA","text_len":1779,"chat_text_len":0},
+{"id":1820227,"mailbox_name":"1. Happier Support","name":"Use LoginIssueSIWACheckSettingsForMaskedAddress","text_len":1093,"chat_text_len":0},
+{"id":1641194,"mailbox_name":"1. Happier Support","name":"Use LoginIssueSIWAHideMyEmailExplained SNIPPET","text_len":597,"chat_text_len":0},
+{"id":2028651,"mailbox_name":"1. Happier Support","name":"Use MoveSubscription","text_len":699,"chat_text_len":0},
+{"id":3645073,"mailbox_name":"1. Happier Support","name":"Use MovedSubAndStatsToNewAccount FILLIN","text_len":618,"chat_text_len":0},
+{"id":3657684,"mailbox_name":"1. Happier Support","name":"Use MultipleAccountsWeSeeOneAddress FILLIN","text_len":1553,"chat_text_len":0},
+{"id":1404117,"mailbox_name":"1. Happier Support","name":"Use SendUsASupportTicketEmail","text_len":802,"chat_text_len":0},
+{"id":2414060,"mailbox_name":"1. Happier Support","name":"Use StripeNotAcceptingCreditCard-Comped","text_len":863,"chat_text_len":0},
+{"id":3033333,"mailbox_name":"1. Happier Support","name":"Use TeamsAddSeats","text_len":454,"chat_text_len":0},
+{"id":3033404,"mailbox_name":"1. Happier Support","name":"Use TeamsManualAdd","text_len":492,"chat_text_len":0},
+{"id":3657058,"mailbox_name":"1. Happier Support","name":"Use WhatEmailDidYouUseToRegister","text_len":1107,"chat_text_len":0},
+{"id":1608320,"mailbox_name":"1. Happier Support","name":"Wow MeditationFAQ","text_len":249,"chat_text_len":0},
+{"id":1605884,"mailbox_name":"1. Happier Support","name":"Wow MeditationFAQJustStarting","text_len":359,"chat_text_len":0},
+{"id":3068782,"mailbox_name":"1. Happier Support","name":"Wow ProTips","text_len":979,"chat_text_len":0},
+{"id":3343225,"mailbox_name":"2. Happier Help","name":"AskingForHelp","text_len":529,"chat_text_len":0},
+{"id":3399633,"mailbox_name":"2. Happier Help","name":"Encouragement AwesomeDay","text_len":20,"chat_text_len":0},
+{"id":3399654,"mailbox_name":"2. Happier Help","name":"Encouragement BadMeditatorFlag","text_len":32,"chat_text_len":0},
+{"id":3399639,"mailbox_name":"2. Happier Help","name":"Encouragement BadMeditatorsWelcome","text_len":25,"chat_text_len":0},
+{"id":3399655,"mailbox_name":"2. Happier Help","name":"Encouragement Can'tDoMeditationWrong","text_len":30,"chat_text_len":0},
+{"id":3340398,"mailbox_name":"2. Happier Help","name":"Encouragement CuriousInspired","text_len":28,"chat_text_len":0},
+{"id":3399656,"mailbox_name":"2. Happier Help","name":"Encouragement DoingItRight","text_len":44,"chat_text_len":0},
+{"id":3399636,"mailbox_name":"2. Happier Help","name":"Encouragement EnjoyProcess","text_len":18,"chat_text_len":0},
+{"id":3399646,"mailbox_name":"2. Happier Help","name":"Encouragement EnjoyTheRide","text_len":15,"chat_text_len":0},
+{"id":3343253,"mailbox_name":"2. Happier Help","name":"Encouragement GoForIt","text_len":10,"chat_text_len":0},
+{"id":3343258,"mailbox_name":"2. Happier Help","name":"Encouragement GoodWork","text_len":22,"chat_text_len":0},
+{"id":3399638,"mailbox_name":"2. Happier Help","name":"Encouragement HangInThere","text_len":50,"chat_text_len":0},
+{"id":3345404,"mailbox_name":"2. Happier Help","name":"Encouragement HereToHelp","text_len":84,"chat_text_len":0},
+{"id":3343265,"mailbox_name":"2. Happier Help","name":"Encouragement KeepAtIt","text_len":46,"chat_text_len":0},
+{"id":3399645,"mailbox_name":"2. Happier Help","name":"Encouragement KeepExploring","text_len":15,"chat_text_len":0},
+{"id":3318275,"mailbox_name":"2. Happier Help","name":"Encouragement KeepItComing","text_len":76,"chat_text_len":0},
+{"id":3399647,"mailbox_name":"2. Happier Help","name":"Encouragement KeepItFun","text_len":28,"chat_text_len":0},
+{"id":3343254,"mailbox_name":"2. Happier Help","name":"Encouragement KeepItUp","text_len":11,"chat_text_len":0},
+{"id":3343267,"mailbox_name":"2. Happier Help","name":"Encouragement KeepMeditating","text_len":53,"chat_text_len":0},
+{"id":3343270,"mailbox_name":"2. Happier Help","name":"Encouragement KeepPracticing","text_len":40,"chat_text_len":0},
+{"id":3345329,"mailbox_name":"2. Happier Help","name":"Encouragement KeepPracticingRightHereWithYou","text_len":55,"chat_text_len":0},
+{"id":3399644,"mailbox_name":"2. Happier Help","name":"Encouragement KeepSharing","text_len":13,"chat_text_len":0},
+{"id":3343262,"mailbox_name":"2. Happier Help","name":"Encouragement KeepSitting","text_len":57,"chat_text_len":0},
+{"id":3399634,"mailbox_name":"2. Happier Help","name":"Encouragement LearnSomethingNew","text_len":63,"chat_text_len":0},
+{"id":3399643,"mailbox_name":"2. Happier Help","name":"Encouragement NoRightWay","text_len":70,"chat_text_len":0},
+{"id":3340395,"mailbox_name":"2. Happier Help","name":"Encouragement StayAmazing","text_len":13,"chat_text_len":0},
+{"id":3343271,"mailbox_name":"2. Happier Help","name":"Encouragement StayMindful","text_len":23,"chat_text_len":0},
+{"id":3399650,"mailbox_name":"2. Happier Help","name":"Encouragement StickWithIt","text_len":14,"chat_text_len":0},
+{"id":3340397,"mailbox_name":"2. Happier Help","name":"Encouragement SunnyDays","text_len":38,"chat_text_len":0},
+{"id":3399653,"mailbox_name":"2. Happier Help","name":"Encouragement WeGotYou","text_len":31,"chat_text_len":0},
+{"id":3399660,"mailbox_name":"2. Happier Help","name":"Encouragement WhereToFindUs","text_len":46,"chat_text_len":0},
+{"id":3399641,"mailbox_name":"2. Happier Help","name":"Encouragement WithYou","text_len":27,"chat_text_len":0},
+{"id":3343264,"mailbox_name":"2. Happier Help","name":"Encouragement You'reDoingGreat","text_len":19,"chat_text_len":0},
+{"id":3399652,"mailbox_name":"2. Happier Help","name":"Encouragement YouGotThis","text_len":13,"chat_text_len":0},
+{"id":3318231,"mailbox_name":"2. Happier Help","name":"Gratitude Appreciate","text_len":24,"chat_text_len":0},
+{"id":3399658,"mailbox_name":"2. Happier Help","name":"Gratitude BeingAwesome","text_len":25,"chat_text_len":0},
+{"id":3343251,"mailbox_name":"2. Happier Help","name":"Gratitude Community","text_len":39,"chat_text_len":0},
+{"id":3343240,"mailbox_name":"2. Happier Help","name":"Gratitude Grateful","text_len":41,"chat_text_len":0},
+{"id":3343243,"mailbox_name":"2. Happier Help","name":"Gratitude MadeOurDay","text_len":29,"chat_text_len":0},
+{"id":3343246,"mailbox_name":"2. Happier Help","name":"Gratitude MeansALot","text_len":54,"chat_text_len":0},
+{"id":3393034,"mailbox_name":"2. Happier Help","name":"Gratitude ShareJourneyInspiring","text_len":66,"chat_text_len":0},
+{"id":3343250,"mailbox_name":"2. Happier Help","name":"Gratitude SmilingEarToEar","text_len":37,"chat_text_len":0},
+{"id":3343232,"mailbox_name":"2. Happier Help","name":"Gratitude SoKind","text_len":23,"chat_text_len":0},
+{"id":3343275,"mailbox_name":"2. Happier Help","name":"Gratitude Story","text_len":43,"chat_text_len":0},
+{"id":3318233,"mailbox_name":"2. Happier Help","name":"Gratitude Thanks","text_len":17,"chat_text_len":0},
+{"id":3343230,"mailbox_name":"2. Happier Help","name":"Gratitude WeAppreciate","text_len":48,"chat_text_len":0},
+{"id":3343234,"mailbox_name":"2. Happier Help","name":"Gratitude Wonderful","text_len":21,"chat_text_len":0},
+{"id":3343248,"mailbox_name":"2. Happier Help","name":"Gratitude YourSupport","text_len":32,"chat_text_len":0},
+{"id":3343236,"mailbox_name":"2. Happier Help","name":"Gratitude YourWork","text_len":93,"chat_text_len":0},
+{"id":3316020,"mailbox_name":"2. Happier Help","name":"Middle PleaseEmailUs","text_len":92,"chat_text_len":0},
+{"id":3318266,"mailbox_name":"2. Happier Help","name":"Middle WriteToUs","text_len":195,"chat_text_len":0},
+{"id":3315969,"mailbox_name":"2. Happier Help","name":"Signature","text_len":64,"chat_text_len":0},
+{"id":3945769,"mailbox_name":"3. Happier Apple Support","name":"Bug PlaybackChinaFall2025","text_len":428,"chat_text_len":0},
+{"id":1875428,"mailbox_name":"3. Happier Apple Support","name":"Feedback FeatureRequestFriends","text_len":462,"chat_text_len":0},
+{"id":3596767,"mailbox_name":"3. Happier Apple Support","name":"Feedback PassedOn","text_len":490,"chat_text_len":0},
+{"id":1971046,"mailbox_name":"3. Happier Apple Support","name":"General GladIt'sWorking","text_len":210,"chat_text_len":0},
+{"id":1960328,"mailbox_name":"3. Happier Apple Support","name":"General GladToHearIt","text_len":160,"chat_text_len":0},
+{"id":1931882,"mailbox_name":"3. Happier Apple Support","name":"General GladToHelp","text_len":227,"chat_text_len":0},
+{"id":3936040,"mailbox_name":"3. Happier Apple Support","name":"Join AppleEmailPasswordReset","text_len":920,"chat_text_len":0},
+{"id":3945868,"mailbox_name":"3. Happier Apple Support","name":"Join JoinSteps SNIPPET","text_len":1894,"chat_text_len":0},
+{"id":3943520,"mailbox_name":"3. Happier Apple Support","name":"Join PasswordResetToDefaultThenJoin","text_len":557,"chat_text_len":0},
+{"id":3943514,"mailbox_name":"3. Happier Apple Support","name":"Join SignIntoHiddenSIWAThenJoin","text_len":1962,"chat_text_len":0},
+{"id":3956983,"mailbox_name":"3. Happier Apple Support","name":"Join TryingToJoinLateNeverJoined","text_len":964,"chat_text_len":0},
+{"id":3945768,"mailbox_name":"3. Happier Apple Support","name":"Link AppleForceQuitSupportArticle","text_len":65,"chat_text_len":0},
+{"id":3950699,"mailbox_name":"3. Happier Apple Support","name":"Minutes Can'tSeeCalendar","text_len":794,"chat_text_len":0},
+{"id":3945834,"mailbox_name":"3. Happier Apple Support","name":"Minutes CheckHealthAppSettings","text_len":962,"chat_text_len":0},
+{"id":3950703,"mailbox_name":"3. Happier Apple Support","name":"Minutes MeditationAdded","text_len":187,"chat_text_len":0},
+{"id":3956622,"mailbox_name":"3. Happier Apple Support","name":"Minutes Under60SecondsAddYourOwn","text_len":1628,"chat_text_len":0},
+{"id":2413715,"mailbox_name":"3. Happier Apple Support","name":"SNIPPET AddMinutes","text_len":530,"chat_text_len":0},
+{"id":2416986,"mailbox_name":"3. Happier Apple Support","name":"SNIPPET KeepMeditating","text_len":425,"chat_text_len":0},
+{"id":2825041,"mailbox_name":"3. Happier Apple Support","name":"SNIPPET RenewalOnOct30","text_len":197,"chat_text_len":0},
+{"id":1960442,"mailbox_name":"3. Happier Apple Support","name":"SNIPPET SIWACheckSettingsForMaskedAddress","text_len":741,"chat_text_len":0},
+{"id":1958163,"mailbox_name":"3. Happier Apple Support","name":"SNIPPET SignOutAndSignIn","text_len":663,"chat_text_len":0},
+{"id":1971376,"mailbox_name":"3. Happier Apple Support","name":"Support AndroidAccessApplied FILLIN","text_len":582,"chat_text_len":0},
+{"id":1584545,"mailbox_name":"3. Happier Apple Support","name":"Support AndroidNoAccount","text_len":892,"chat_text_len":0},
+{"id":2468972,"mailbox_name":"3. Happier Apple Support","name":"Support AppleFamPromoCode","text_len":2446,"chat_text_len":0},
+{"id":1875421,"mailbox_name":"3. Happier Apple Support","name":"Support DeleteAccount Completed","text_len":392,"chat_text_len":0},
+{"id":1872938,"mailbox_name":"3. Happier Apple Support","name":"Support EmailUpdated FILLIN","text_len":1062,"chat_text_len":0},
+{"id":2430548,"mailbox_name":"3. Happier Apple Support","name":"Support FriendsCan'tAddAfterJoin","text_len":546,"chat_text_len":0},
+{"id":2413663,"mailbox_name":"3. Happier Apple Support","name":"Support FriendsInstructions","text_len":1161,"chat_text_len":0},
+{"id":3228706,"mailbox_name":"3. Happier Apple Support","name":"Support FriendsTroubleshooting","text_len":699,"chat_text_len":0},
+{"id":1943168,"mailbox_name":"3. Happier Apple Support","name":"Support GlobalAccesLoginEmail","text_len":1889,"chat_text_len":0},
+{"id":2805516,"mailbox_name":"3. Happier Apple Support","name":"Support GlobalAccessAllSet FILLIN","text_len":1043,"chat_text_len":0},
+{"id":2249774,"mailbox_name":"3. Happier Apple Support","name":"Support GlobalAccessInstructions","text_len":521,"chat_text_len":0},
+{"id":3788206,"mailbox_name":"3. Happier Apple Support","name":"Support GlobalAccessLoginSIWA","text_len":1779,"chat_text_len":0},
+{"id":3302719,"mailbox_name":"3. Happier Apple Support","name":"Support GlobalAccessTapLinkAgain","text_len":943,"chat_text_len":0},
+{"id":3836411,"mailbox_name":"3. Happier Apple Support","name":"Support GlobalAccessTrialStartPage","text_len":383,"chat_text_len":0},
+{"id":2851196,"mailbox_name":"3. Happier Apple Support","name":"Support JoinAfterQuitting","text_len":596,"chat_text_len":0},
+{"id":2399283,"mailbox_name":"3. Happier Apple Support","name":"Support JoinAllSet FILLIN","text_len":1225,"chat_text_len":0},
+{"id":2416991,"mailbox_name":"3. Happier Apple Support","name":"Support JoinCheckingBack LostGirlsAndBoysRecovery","text_len":736,"chat_text_len":0},
+{"id":3587907,"mailbox_name":"3. Happier Apple Support","name":"Support JoinClosed","text_len":716,"chat_text_len":0},
+{"id":2417005,"mailbox_name":"3. Happier Apple Support","name":"Support JoinDownloadAppAndSignIn FILLIN","text_len":1151,"chat_text_len":0},
+{"id":1584548,"mailbox_name":"3. Happier Apple Support","name":"Support JoinErrorBadInternet","text_len":532,"chat_text_len":0},
+{"id":2823750,"mailbox_name":"3. Happier Apple Support","name":"Support JoinErrorChallengeNotFound","text_len":1063,"chat_text_len":0},
+{"id":1584461,"mailbox_name":"3. Happier Apple Support","name":"Support JoinErrorJSONIssue","text_len":1248,"chat_text_len":0},
+{"id":1584507,"mailbox_name":"3. Happier Apple Support","name":"Support JoinErrorNeedToCreateAccount","text_len":893,"chat_text_len":0},
+{"id":1947792,"mailbox_name":"3. Happier Apple Support","name":"Support JoinErrorTapLinkAgain FILLIN","text_len":1697,"chat_text_len":0},
+{"id":3580332,"mailbox_name":"3. Happier Apple Support","name":"Support JoinErrorTryAgainSomethingWentWrong","text_len":877,"chat_text_len":0},
+{"id":1584543,"mailbox_name":"3. Happier Apple Support","name":"Support JoinGladToHearItAllSet","text_len":320,"chat_text_len":0},
+{"id":1929080,"mailbox_name":"3. Happier Apple Support","name":"Support JoinLogIntoRegisteredEmailAccount FILLIN","text_len":2112,"chat_text_len":0},
+{"id":2416987,"mailbox_name":"3. Happier Apple Support","name":"Support JoinLogIntoRegisteredSIWAAccount","text_len":1294,"chat_text_len":0},
+{"id":2417026,"mailbox_name":"3. Happier Apple Support","name":"Support JoinMoreInfo","text_len":1072,"chat_text_len":0},
+{"id":1584508,"mailbox_name":"3. Happier Apple Support","name":"Support JoinSignUpSteps","text_len":1233,"chat_text_len":0},
+{"id":1584561,"mailbox_name":"3. Happier Apple Support","name":"Support JoinTokenDeletedResetGoAheadAndRejoin","text_len":1468,"chat_text_len":0},
+{"id":2408486,"mailbox_name":"3. Happier Apple Support","name":"Support JoinTokenSwap FILLIN","text_len":1425,"chat_text_len":0},
+{"id":2411049,"mailbox_name":"3. Happier Apple Support","name":"Support JoinTokenTaken FILLIN","text_len":1258,"chat_text_len":0},
+{"id":2408915,"mailbox_name":"3. Happier Apple Support","name":"Support JoinUpdateHappierApp FILLIN","text_len":894,"chat_text_len":0},
+{"id":2417395,"mailbox_name":"3. Happier Apple Support","name":"Support Medals","text_len":2403,"chat_text_len":0},
+{"id":2417408,"mailbox_name":"3. Happier Apple Support","name":"Support MinutesCan'tRedoMissedDay","text_len":712,"chat_text_len":0},
+{"id":1981238,"mailbox_name":"3. Happier Apple Support","name":"Support MinutesHealthAppDisabledDelAndReinstallApp FILLIN","text_len":1185,"chat_text_len":0},
+{"id":2009078,"mailbox_name":"3. Happier Apple Support","name":"Support MinutesWhyDidn'tMyMinutesRegister","text_len":1561,"chat_text_len":0},
+{"id":2825743,"mailbox_name":"3. Happier Apple Support","name":"Support PasswordReset FILLIN","text_len":1076,"chat_text_len":0},
+{"id":3222234,"mailbox_name":"3. Happier Apple Support","name":"Support PasswordResetBrazeIssueFixed","text_len":1213,"chat_text_len":0},
+{"id":2011963,"mailbox_name":"3. Happier Apple Support","name":"Support PrizeAccountInfo FILLIN","text_len":1291,"chat_text_len":0},
+{"id":2873832,"mailbox_name":"3. Happier Apple Support","name":"Support PrizeAfterChallenge","text_len":933,"chat_text_len":0},
+{"id":1584497,"mailbox_name":"3. Happier Apple Support","name":"Support RefundRequest","text_len":1362,"chat_text_len":0},
+{"id":1958073,"mailbox_name":"3. Happier Apple Support","name":"Support SendASupportTicket","text_len":930,"chat_text_len":0},
+{"id":3238748,"mailbox_name":"3. Happier Apple Support","name":"Support SendSupportEmailFromChallenge","text_len":778,"chat_text_len":0},
+{"id":1900465,"mailbox_name":"3. Happier Apple Support","name":"Support WhatEmailDidYouUseToRegister FILLIN","text_len":1230,"chat_text_len":0},
+{"id":3644019,"mailbox_name":"3. Happier Apple Support","name":"TechSupport AppleDeleteAndReinstall FILLIN","text_len":1436,"chat_text_len":0},
+{"id":3222039,"mailbox_name":"3. Happier Apple Support","name":"TechSupport AppleDeleteAndReinstallNoAccountAddress FILLIN","text_len":2008,"chat_text_len":0},
+{"id":1959296,"mailbox_name":"4. Happier Harvard Support","name":"D 30%DiscountWebHarvardFamilyFriendsForever","text_len":2719,"chat_text_len":0},
+{"id":1875418,"mailbox_name":"4. Happier Harvard Support","name":"DeleteAccount Completed","text_len":374,"chat_text_len":0},
+{"id":2067762,"mailbox_name":"4. Happier Harvard Support","name":"L PasswordReset","text_len":83,"chat_text_len":0},
+{"id":1836444,"mailbox_name":"4. Happier Harvard Support","name":"R GladToHearIt","text_len":231,"chat_text_len":0},
+{"id":1769391,"mailbox_name":"4. Happier Harvard Support","name":"R GladToHelp","text_len":191,"chat_text_len":0},
+{"id":1834190,"mailbox_name":"4. Happier Harvard Support","name":"R HarvardAddedToOrg","text_len":410,"chat_text_len":0},
+{"id":1789154,"mailbox_name":"4. Happier Harvard Support","name":"R HarvardAppleCancelSubscription","text_len":1833,"chat_text_len":0},
+{"id":1759077,"mailbox_name":"4. Happier Harvard Support","name":"R HarvardEmailUpdated","text_len":1117,"chat_text_len":0},
+{"id":1769829,"mailbox_name":"4. Happier Harvard Support","name":"R HarvardNotEligible FILLIN","text_len":685,"chat_text_len":0},
+{"id":2374705,"mailbox_name":"4. Happier Harvard Support","name":"R RetireeChangeToPersonalEmailPlusRetireDiscount","text_len":1538,"chat_text_len":0}];
+
+const mailboxColors = {};
+const mailboxNames = [...new Set(DATA.map(d => d.mailbox_name))].sort();
+mailboxNames.forEach((m, i) => mailboxColors[m] = i);
+
+function getCategory(name) {
+  const first = name.split(' ')[0];
+  return first;
+}
+DATA.forEach(d => d.category = getCategory(d.name));
+
+// Stats
+const statsRow = document.getElementById('stats-row');
+const totalReplies = DATA.length;
+const avgTextLen = Math.round(DATA.reduce((s,d) => s + (d.text_len||0), 0) / DATA.length);
+const maxTextLen = Math.max(...DATA.map(d => d.text_len || 0));
+const longestReply = DATA.find(d => d.text_len === maxTextLen);
+const categories = [...new Set(DATA.map(d => d.category))];
+const stats = [
+  { label: 'Total Replies', value: totalReplies, cls: 'accent' },
+  { label: 'Mailboxes', value: mailboxNames.length, cls: 'green' },
+  { label: 'Categories', value: categories.length, cls: 'amber' },
+  { label: 'Avg Text Length', value: avgTextLen + ' chars', cls: 'rose' },
+];
+stats.forEach(s => {
+  statsRow.innerHTML += `<div class="stat-card"><div class="label">${s.label}</div><div class="value ${s.cls}">${s.value}</div></div>`;
+});
+
+// Mailbox bars
+const mailboxBars = document.getElementById('mailbox-bars');
+const mailboxCounts = mailboxNames.map(m => ({ name: m, count: DATA.filter(d => d.mailbox_name === m).length }));
+const maxCount = Math.max(...mailboxCounts.map(m => m.count));
+mailboxCounts.forEach(m => {
+  const pct = (m.count / maxCount * 100).toFixed(1);
+  const ci = mailboxColors[m.name];
+  mailboxBars.innerHTML += `<div class="bar-group"><div class="bar-label"><span>${m.name}</span><span>${m.count} replies</span></div><div class="bar-track"><div class="bar-fill c${ci}" style="width:${pct}%">${m.count}</div></div></div>`;
+});
+
+// Category breakdown
+const catSelect = document.getElementById('cat-mailbox-select');
+mailboxNames.forEach(m => {
+  catSelect.innerHTML += `<option value="${m}">${m}</option>`;
+});
+function renderCategories(mailbox) {
+  const list = document.getElementById('category-list');
+  const items = DATA.filter(d => d.mailbox_name === mailbox);
+  const catCounts = {};
+  items.forEach(d => { catCounts[d.category] = (catCounts[d.category]||0) + 1; });
+  const sorted = Object.entries(catCounts).sort((a,b) => b[1] - a[1]);
+  list.innerHTML = sorted.map(([cat, cnt]) =>
+    `<div class="cat-item"><span>${cat}</span><span class="cat-badge">${cnt}</span></div>`
+  ).join('');
+}
+catSelect.addEventListener('change', () => renderCategories(catSelect.value));
+renderCategories(mailboxNames[0]);
+
+// Text length histogram
+const chart = document.getElementById('text-len-chart');
+const bucketSize = 500;
+const buckets = {};
+DATA.forEach(d => {
+  const b = Math.floor((d.text_len||0) / bucketSize) * bucketSize;
+  buckets[b] = (buckets[b]||0) + 1;
+});
+const maxBucket = Math.max(...Object.keys(buckets).map(Number));
+const maxBucketCount = Math.max(...Object.values(buckets));
+for (let b = 0; b <= maxBucket; b += bucketSize) {
+  const count = buckets[b] || 0;
+  const h = count ? Math.max(4, (count / maxBucketCount) * 100) : 0;
+  const bar = document.createElement('div');
+  bar.className = 'text-bar';
+  bar.style.height = h + '%';
+  bar.title = `${b}-${b+bucketSize} chars: ${count} replies`;
+  chart.appendChild(bar);
+}
+
+// Insights
+const insights = document.getElementById('insights');
+const nullText = DATA.filter(d => d.text_len === null || d.text_len === 0).length;
+const withChatText = DATA.filter(d => d.chat_text_len > 0).length;
+const fillinCount = DATA.filter(d => d.name.includes('FILLIN')).length;
+const snippetCount = DATA.filter(d => d.name.includes('SNIPPET')).length;
+insights.innerHTML = `
+  <div style="margin-bottom:8px;"><strong style="color:var(--accent2);">Longest reply:</strong> ${longestReply.name} <span style="color:var(--muted);">(${maxTextLen.toLocaleString()} chars)</span></div>
+  <div style="margin-bottom:8px;"><strong style="color:var(--green);">FILLIN templates:</strong> ${fillinCount} replies need manual fill-in</div>
+  <div style="margin-bottom:8px;"><strong style="color:var(--amber);">SNIPPETs:</strong> ${snippetCount} replies are reusable snippets</div>
+  <div style="margin-bottom:8px;"><strong style="color:var(--rose);">Empty/null text:</strong> ${nullText} replies have no text body</div>
+  <div style="margin-bottom:8px;"><strong style="color:var(--cyan);">Chat text:</strong> ${withChatText} replies have chat-specific text</div>
+  <div><strong style="color:var(--muted);">Top categories:</strong> ${(() => {
+    const cc = {}; DATA.forEach(d => cc[d.category] = (cc[d.category]||0)+1);
+    return Object.entries(cc).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([c,n])=>`${c} (${n})`).join(', ');
+  })()}</div>
+`;
+
+// Table
+const filterMailbox = document.getElementById('filter-mailbox');
+const filterCategory = document.getElementById('filter-category');
+mailboxNames.forEach(m => { filterMailbox.innerHTML += `<option value="${m}">${m}</option>`; });
+categories.sort().forEach(c => { filterCategory.innerHTML += `<option value="${c}">${c}</option>`; });
+
+let sortCol = 'name';
+let sortAsc = true;
+
+function renderTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const mbox = filterMailbox.value;
+  const cat = filterCategory.value;
+  let filtered = DATA.filter(d => {
+    if (search && !d.name.toLowerCase().includes(search)) return false;
+    if (mbox && d.mailbox_name !== mbox) return false;
+    if (cat && d.category !== cat) return false;
+    return true;
+  });
+  filtered.sort((a,b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va == null) va = '';
+    if (vb == null) vb = '';
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = filtered.map(d => {
+    const ci = mailboxColors[d.mailbox_name];
+    const shortMailbox = d.mailbox_name.replace(/^\d+\.\s*/, '');
+    return `<tr data-id="${d.id}">
+      <td class="len-cell">${d.id}</td>
+      <td><span class="mailbox-tag m${ci}">${shortMailbox}</span></td>
+      <td>${d.category}</td>
+      <td class="name-cell">${d.name}</td>
+      <td class="len-cell">${(d.text_len||0).toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('count-label').textContent = `Showing ${filtered.length} of ${DATA.length} replies`;
+
+  // Update column headers
+  document.querySelectorAll('thead th').forEach(th => {
+    const col = th.dataset.col;
+    th.classList.toggle('active', col === sortCol);
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = (col === sortCol && !sortAsc) ? '\u25BC' : '\u25B2';
+  });
+}
+
+document.getElementById('search').addEventListener('input', renderTable);
+filterMailbox.addEventListener('change', renderTable);
+filterCategory.addEventListener('change', renderTable);
+document.querySelectorAll('thead th').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    if (col === sortCol) { sortAsc = !sortAsc; }
+    else { sortCol = col; sortAsc = true; }
+    renderTable();
+  });
+});
+
+renderTable();
+</script>
+</body>
+</html>

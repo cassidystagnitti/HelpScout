@@ -12,7 +12,7 @@ A collection of scripts for exporting data from Help Scout.
    ```bash
    cp .env.example .env
    ```
-   You can generate these in Help Scout under **Your Profile > My Apps > Create My App**.
+   You can generate Help Scout credentials under **Your Profile > My Apps > Create My App**. For the contradiction finder, add your Anthropic API key as well.
 
 ## Scripts
 
@@ -47,3 +47,15 @@ Output is written to `saved_replies.db` with the following schema:
 | `fetched_at` | TEXT | ISO 8601 timestamp of when the data was fetched |
 
 Each run replaces all rows so the database always reflects the current state of saved replies.
+
+### find_contradictions.py
+
+Reads all saved replies from `saved_replies.db`, groups them by the name-prefix category (e.g. `CancelRefund`, `AccountManagement`, `TechSupport`), and sends them to Claude to identify contradictions between replies.
+
+Requires an `ANTHROPIC_API_KEY` in your `.env` file.
+
+```bash
+python scripts/find_contradictions.py
+```
+
+Output is written to `contradictions.md` and printed to the console.
