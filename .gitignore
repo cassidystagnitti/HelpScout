@@ -1,0 +1,11 @@
+.env
+
+# Output data
+*.csv
+*.db
+*.db-shm
+*.db-wal
+
+# Python
+__pycache__/
+*.pyc
