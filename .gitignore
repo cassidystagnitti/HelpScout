@@ -5,6 +5,7 @@
 *.db
 *.db-shm
 *.db-wal
+contradictions.md
 
 # Python
 __pycache__/
