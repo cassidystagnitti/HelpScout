@@ -2,6 +2,9 @@
 
 # Output data
 *.csv
+!tags.csv
+!teams.csv
+!custom_fields.csv
 *.db
 *.db-shm
 *.db-wal

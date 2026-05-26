@@ -1,0 +1,4 @@
+name,id,type,required,order,options
+Priority - Urgency,37716,dropdown,True,2,P1:197063; P2:197064; P3:197065
+Reminder Date,37280,date,False,4,
+Tier - Complexity,52384,dropdown,True,3,T1:279268; T2:279269; T3:279270
