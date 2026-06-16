@@ -131,7 +131,7 @@ def extract_batch(client, batch):
     block = format_feedback_block(batch)
     prompt = EXTRACT_PROMPT.format(n=len(batch), feedback_block=block)
     msg = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -170,7 +170,7 @@ def merge_results(client, batch_payloads):
 
     prompt = MERGE_PROMPT.format(batch_count=len(batch_payloads), batch_blob=blob)
     msg = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
